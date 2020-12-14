@@ -221,6 +221,8 @@ module Theory (
   , prettyClosedSummary
   , prettyClosedDiffSummary
 
+  , prettyClosedSources
+
   , prettyIntruderVariants
   , prettyTraceQuantifier
 
@@ -261,6 +263,7 @@ import qualified Data.Label.Poly
 
 import           Safe                                (headMay, atMay)
 
+import           Theory.Constraint.System.JSON
 import           Theory.Model
 import           Theory.Sapic
 import           Theory.Sapic.Print
@@ -2751,23 +2754,26 @@ prettyOpenTranslatedTheory =
 
 -- | Pretty print a closed theory.
 prettyClosedTheory :: HighlightDocument d => ClosedTheory -> d
-prettyClosedTheory thy = if containsManualRuleVariants mergedRules
-    then
-      prettyTheory prettySignatureWithMaude
+prettyClosedTheory thy = vcat [
+    if containsManualRuleVariants mergedRules
+      then
+          prettyTheory prettySignatureWithMaude
                        ppInjectiveFactInsts
                        -- (prettyIntrVariantsSection . intruderRules . L.get crcRules)
                        prettyOpenProtoRuleAsClosedRule
                        prettyIncrementalProof
                        emptyString
                        thy'
-    else
-      prettyTheory prettySignatureWithMaude
-               ppInjectiveFactInsts
-               -- (prettyIntrVariantsSection . intruderRules . L.get crcRules)
-               prettyClosedProtoRule
-               prettyIncrementalProof
-               emptyString
-               thy
+      else
+          prettyTheory prettySignatureWithMaude
+                       ppInjectiveFactInsts
+                       -- (prettyIntrVariantsSection . intruderRules . L.get crcRules)
+                       prettyClosedProtoRule
+                       prettyIncrementalProof
+                       emptyString
+                       thy
+    , prettyClosedSources RefinedSource thy
+    ]
   where
     items = L.get thyItems thy
     mergedRules = mergeOpenProtoRules $ map (mapTheoryItem openProtoRule id) items
@@ -2906,6 +2912,41 @@ prettyClosedDiffSummary thy =
 
     proofStepSummary = proofStepStatus &&& const (Sum (1::Integer))
     diffProofStepSummary = diffProofStepStatus &&& const (Sum (1::Integer))
+
+prettyClosedSources :: HighlightDocument d => SourceKind -> ClosedTheory -> d
+prettyClosedSources kind thy = vcat [
+      text $ replicate 78 '='
+    , text "SOURCES"
+    , text $ replicate 78 '='
+    , vcat $ Theory.prettySource <$> getSource kind thy
+    ]
+prettySource :: HighlightDocument d => Source -> d
+prettySource src =
+  if null cases
+    then (text "No cases.")
+    else vcat $ ppHeader : cases
+  where
+    cases    = concatMap ppCase $ zip [1..] $ getDisj $ L.get cdCases src
+    nCases   = int $ length $ getDisj $ L.get cdCases src
+    ppPrem   = nest 2 $ doubleQuotes $ prettyGoal $ L.get cdGoal src
+    ppHeader = hsep
+      [ text "Sources of" <-> ppPrem
+      , parens $ nCases <-> text "cases"
+      ]
+    ppCase (i, (names, se)) =
+      [ fsep [ text "Source", int i, text "of", nCases,
+                                 text " / named ", doubleQuotes (text name),
+                                 if isPartial then text "(partial deconstructions)" else text ""]
+      , ppPrem
+      , prettyNonGraphSystem se
+      , text $ ""
+      , text $ sequentToJSONPretty "HELLO WORLD" se
+      , text $ ""
+      , text $ replicate 78 '-'
+      ]
+      where
+        name = intercalate "_" names
+        isPartial = not $ null $ unsolvedChains se
 
 -- | Pretty print a 'TraceQuantifier'.
 prettyTraceQuantifier :: Document d => TraceQuantifier -> d

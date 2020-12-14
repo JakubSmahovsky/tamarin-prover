@@ -58,6 +58,8 @@ import           Theory.Model
 import           Control.Monad.Bind
 
 import           Debug.Trace
+import           Data.List (intercalate)
+import           Control.Monad.State                     (runStateT)
 
 ------------------------------------------------------------------------------
 -- Precomputing case distinctions
@@ -325,15 +327,15 @@ applySource :: ProofContext
                -> Maybe (Reduction [String], Maybe Source)
 applySource ctxt th0 goal = case matchToGoal ctxt th0 goal of
     Just th -> Just ((do
-        markGoalAsSolved "precomputed" goal
         (names, sysTh0) <- disjunctionOfList $ getDisj $ get cdCases th
+        trace (msg names) markGoalAsSolved "precomputed" goal
         sysTh <- (`evalBindT` keepVarBindings) . someInst $ sysTh0
         conjoinSystem sysTh
         return names), Just th0)
     Nothing -> Nothing
   where
     keepVarBindings = M.fromList (map (\v -> (v, v)) (frees goal))
-
+    msg names = "    by: " ++ (intercalate "_" names)
 
 -- | Saturate the sources with respect to each other such that no
 -- additional splitting is introduced; i.e., only rules with a single or no
