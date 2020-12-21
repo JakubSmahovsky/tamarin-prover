@@ -2940,7 +2940,8 @@ prettySource src =
       , ppPrem
       , prettyNonGraphSystem se
       , text $ ""
-      , text $ sequentToJSONPretty "HELLO WORLD" se
+      , text $ "json graph:"
+      , text $ sequentToJSONPretty "SEQUENT" se
       , text $ ""
       , text $ replicate 78 '-'
       ]
