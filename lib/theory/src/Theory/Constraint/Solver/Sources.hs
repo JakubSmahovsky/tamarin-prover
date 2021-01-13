@@ -59,7 +59,6 @@ import           Control.Monad.Bind
 
 import           Debug.Trace
 import           Data.List (intercalate)
-import           Control.Monad.State                     (runStateT)
 
 ------------------------------------------------------------------------------
 -- Precomputing case distinctions
@@ -328,15 +327,17 @@ applySource :: ProofContext
 applySource ctxt th0 goal = case matchToGoal ctxt th0 goal of
     Just th -> Just ((do
         (names, sysTh0) <- disjunctionOfList $ getDisj $ get cdCases th
-        trace (msg names) markGoalAsSolved "precomputed" goal
+        mayStatus <- M.lookup goal <$> getM sGoals
+        trace (msg names mayStatus) markGoalAsSolved "precomputed" goal
         sysTh <- (`evalBindT` keepVarBindings) . someInst $ sysTh0
         conjoinSystem sysTh
         return names), Just th0)
     Nothing -> Nothing
   where
     keepVarBindings = M.fromList (map (\v -> (v, v)) (frees goal))
-    msg names = "    by: " ++ (intercalate "_" names)
-
+    msg names mayStatus = case mayStatus of 
+      Just status -> "    " ++ (show (get gsNr status)) ++ " by: " ++ (intercalate "_" names)
+      Nothing -> "I think Tamarin is about to crash..."
 -- | Saturate the sources with respect to each other such that no
 -- additional splitting is introduced; i.e., only rules with a single or no
 -- conclusion are used for the saturation.
